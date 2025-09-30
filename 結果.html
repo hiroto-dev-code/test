@@ -1,0 +1,378 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>note記事 結果発表</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* 基本のフォント設定 */
+        html {
+            scroll-behavior: smooth; /* スムーズスクロールを有効化 */
+        }
+        body {
+            font-family: 'Inter', 'Helvetica Neue', 'Arial', 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', 'Meiryo', sans-serif;
+            overflow-x: hidden; /* 横スクロールを防止 */
+        }
+        /* 結果発表のグラフアニメーション */
+        @keyframes grow-bar {
+            0% { width: 0; }
+            100% { width: var(--bar-width); }
+        }
+        .animate-grow {
+            animation: grow-bar 1.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+        }
+        /* ランキング表示のアニメーション */
+        @keyframes fadeIn { 
+            from { opacity: 0; transform: translateY(20px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+        .fade-in-item {
+            opacity: 0;
+            animation: fadeIn 0.5s forwards;
+        }
+        /* ボタンのホバーアニメーション */
+        .button-hover {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .button-hover:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px -10px rgba(79, 70, 229, 0.5);
+        }
+        /* 順位発表のカードアニメーション */
+        .announcement-card {
+            animation: fadeIn 1.5s cubic-bezier(0.25, 1, 0.5, 1); /* フェードイン時間を延長 */
+        }
+        /* トップ3のエフェクト */
+        .rank-card-gold { box-shadow: 0 0 30px 10px rgba(255, 215, 0, 0.7); }
+        .rank-card-silver { box-shadow: 0 0 30px 10px rgba(192, 192, 192, 0.7); }
+        .rank-card-bronze { box-shadow: 0 0 30px 10px rgba(205, 127, 50, 0.7); }
+        
+        /* 紙吹雪エフェクト */
+        .confetti {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            background-color: #f00;
+            opacity: 0.8;
+            animation: fall 5s linear forwards; /* 1枚あたりの落下時間を設定 */
+            top: -20px;
+            z-index: 9999;
+        }
+        @keyframes fall {
+            to {
+                transform: translateY(105vh) rotate(720deg);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div id="app" class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-4xl">
+        
+        <header class="text-center mb-8">
+            <h1 id="app-title" class="text-3xl sm:text-4xl font-bold text-gray-900"></h1>
+        </header>
+
+        <div id="initial-view" class="text-center py-12">
+            <button id="start-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xl py-4 px-8 rounded-full button-hover">
+                結果発表を開始！
+            </button>
+        </div>
+        
+        <!-- 順位ごと発表画面 -->
+        <div id="sequential-view" class="hidden text-center">
+            <div id="announcement-area" class="mb-8 min-h-[300px]">
+                <!-- ここに順位が1つずつ表示される -->
+            </div>
+            <button id="next-button" class="bg-green-500 hover:bg-green-600 text-white font-bold text-lg py-3 px-10 rounded-full button-hover">
+                次の順位へ
+            </button>
+        </div>
+
+        <!-- 最終結果一覧画面 -->
+        <div id="result-container" class="hidden bg-white p-6 sm:p-8 rounded-2xl shadow-lg">
+             <h2 class="text-2xl sm:text-3xl font-bold text-center mb-6">最終結果</h2>
+             <!-- ★★★ スクロール可能なランキングリスト ★★★ -->
+             <div id="ranking-list" class="space-y-4 max-h-[70vh] overflow-y-auto pr-4">
+                 <!-- ランキングはJSで生成されます -->
+             </div>
+             <!-- ★★★ 最初に戻るボタン ★★★ -->
+             <div class="text-center mt-8">
+                <button id="reset-button" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-10 rounded-full button-hover">
+                    最初に戻る
+                </button>
+             </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // --- ⚙️ ここから設定 ⚙️ ---
+        
+        const EVENT_TITLE = "SDS note総選挙";
+
+        // 同率順位と6位以下のデータを含むサンプル
+        const RESULTS_DATA = [
+            { 
+                url: "https://note.com/na_fl/n/n108a7ee8a27a", 
+                title: "Geminiと遊ぼう！水平思考クイズでひらめきタイム！",
+                imageUrl: "https://assets.st-note.com/production/uploads/images/197170446/rectangle_large_type_2_ad202b0dce4f9413391677df025fb376.png?width=1200",
+                votes: 26 // 1位
+            },
+            { 
+                url: "https://note.com/yonechan_fl/n/n6a2c8ed2d6bc", 
+                title: "新卒・新米エンジニアよ、エンジニアとは魔法使いである。",
+                imageUrl: "https://assets.st-note.com/production/uploads/images/193730550/rectangle_large_type_2_08131892aa653d2e78cfc64e3fcc1dae.png?width=1200",
+                votes: 23 // 2位
+            },
+            { 
+                url: "https://note.com/na_fl/n/n0c4269227d3a", 
+                title: "【決意編】# 一念発起 ｜ 興味から始まる、転職の一歩",
+                imageUrl: "https://assets.st-note.com/production/uploads/images/190960699/rectangle_large_type_2_8f59c798c983a7f2a7a3b5f3fb081a0a.png?width=1200",
+                votes: 23 // 同率2位
+            },
+            { 
+                url: "https://note.com/harapeco__fl/n/nfe9a3f88341a", 
+                title: "2025年上半期で私が学んだ6つのこと",
+                imageUrl: "https://assets.st-note.com/production/uploads/images/208207528/rectangle_large_type_2_78ce35d568e13e114211474ab9e3f8f5.png?width=1200",
+                votes: 23 // 2位
+            },
+            { 
+                url: "https://note.com/yonechan_fl/n/n51d60ee674fa",
+                title: "Geminiと友達になったら、予想以上に友達だった話",
+                imageUrl: "https://assets.st-note.com/production/uploads/images/199497816/rectangle_large_type_2_3cd34aa222f25999ec2965add164be29.png?width=1200",
+                votes: 22 // 5位
+            },
+            { 
+                url: "https://note.com/yonechan_fl/n/neb52c3716c4b",
+                title: "Geminiと一緒にHTMLを学んでみた",
+                imageUrl: "https://assets.st-note.com/production/uploads/images/210068946/rectangle_large_type_2_ac6cbdcf4c25c5e79f288514cd324a09.png?width=1200",
+                votes: 20 // 6位
+            },
+            { 
+                url: "https://note.com/harapeco__fl/n/n376d8f601a74",
+                title: "SESエンジニアとして痛感した『認識齟齬の壁』～初案件で見えた成長への道～",
+                imageUrl: "https://assets.st-note.com/production/uploads/images/191725572/rectangle_large_type_2_22af0a0ed6a7f1a007c96871c5abe487.png?width=1200",
+                votes: 18 // 6位
+            },
+            { 
+                url: "https://note.com/yonechan_fl/n/n2f0fc49b76fa",
+                title: "全ての社会人が知っておいてほしい、数字の扱い方",
+                imageUrl: "https://assets.st-note.com/production/uploads/images/204935780/rectangle_large_type_2_587141c638005bfdf8704e21ec0b429a.png?width=1200",
+                votes: 17 // 6位
+            },
+            { 
+                url: "https://note.com/yonechan_fl/n/nea42f19c988d",
+                title: "実際に触ってわかった、ハイコード・ローコード・ノーコードのメリデメ",
+                imageUrl: "https://assets.st-note.com/production/uploads/images/199239713/rectangle_large_type_2_d32b2966044073bf721318acd1800bb9.png?width=1200",
+                votes: 14 // 6位
+            },
+        ];
+
+        // --- ⚙️ 設定はここまで ⚙️ ---
+
+
+        // --- アプリケーションのロジック ---
+        const startButton = document.getElementById('start-button');
+        const nextButton = document.getElementById('next-button');
+        const resetButton = document.getElementById('reset-button');
+        const initialView = document.getElementById('initial-view');
+        const sequentialView = document.getElementById('sequential-view');
+        const resultContainer = document.getElementById('result-container');
+        const announcementArea = document.getElementById('announcement-area');
+
+        let rankedResults;
+        let ranksToReveal;
+        let revealIndex;
+        let confettiInterval = null;
+
+        function stopConfettiStream() {
+            if (confettiInterval) {
+                clearInterval(confettiInterval);
+                confettiInterval = null;
+            }
+            document.querySelectorAll('.confetti').forEach(el => el.remove());
+        }
+
+        function startConfettiStream(batchSize, colors) {
+            stopConfettiStream(); 
+            const createConfettiBatch = () => {
+                for (let i = 0; i < batchSize; i++) {
+                    const confetti = document.createElement('div');
+                    confetti.classList.add('confetti');
+                    confetti.style.left = `${Math.random() * 100}vw`;
+                    confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                    confetti.style.animationDuration = `${Math.random() * 2 + 3}s`; 
+                    confetti.style.transform = `scale(${Math.random() * 1.2 + 0.8})`;
+                    document.body.appendChild(confetti);
+                    setTimeout(() => confetti.remove(), 5000); 
+                }
+            };
+            confettiInterval = setInterval(createConfettiBatch, 150); 
+            setTimeout(() => {
+                if (confettiInterval) {
+                    clearInterval(confettiInterval);
+                    confettiInterval = null;
+                }
+            }, 60000);
+        }
+
+        function displayCurrentRank() {
+            stopConfettiStream(); 
+
+            const rankToDisplay = ranksToReveal[revealIndex];
+            const items = rankedResults.filter(item => item.rank === rankToDisplay);
+            
+            let effectClass = '';
+            let rankText = `第 ${rankToDisplay} 位`;
+            let confettiColors = [];
+            let confettiBatchSize = 0;
+
+            if (rankToDisplay === 1) {
+                effectClass = 'rank-card-gold';
+                rankText = '✨🏆 第 1 位 🏆✨';
+                confettiColors = ['#FFD700', '#FFDF00', '#F5E6A4', '#FFFFFF'];
+                confettiBatchSize = 5;
+            } else if (rankToDisplay === 2) {
+                effectClass = 'rank-card-silver';
+                rankText = '🎉 第 2 位 🎉';
+                confettiColors = ['#C0C0C0', '#E0E0E0', '#FFFFFF'];
+                confettiBatchSize = 3;
+            } else if (rankToDisplay === 3) {
+                effectClass = 'rank-card-bronze';
+                rankText = '👏 第 3 位 👏';
+                confettiColors = ['#CD7F32', '#D29A67', '#FFFFFF'];
+                confettiBatchSize = 2;
+            }
+
+            if (confettiBatchSize > 0) {
+                startConfettiStream(confettiBatchSize, confettiColors);
+            }
+            
+            const cardsHtml = items.map(item => `
+                <div class="bg-white p-6 rounded-2xl shadow-xl max-w-sm mx-auto announcement-card ${effectClass}">
+                    <a href="${item.url}" target="_blank" rel="noopener noreferrer">
+                        <img src="${item.imageUrl}" class="w-full h-56 object-cover rounded-lg shadow-md mb-4" alt="${item.title}" onerror="this.onerror=null;this.src='https://placehold.co/600x400/E2E8F0/A0AEC0?text=No+Image';">
+                    </a>
+                    <h3 class="font-semibold text-lg sm:text-xl truncate" title="${item.title}">${item.title}</h3>
+                    <p class="text-xl sm:text-2xl font-bold text-gray-800 mt-2">${item.votes} 票</p>
+                </div>
+            `).join('');
+
+            announcementArea.innerHTML = `
+                <h2 class="text-3xl sm:text-4xl font-bold mb-6 text-indigo-600">${rankText}</h2>
+                <div class="flex justify-center items-start flex-wrap gap-6">
+                    ${cardsHtml}
+                </div>
+            `;
+            
+            // ボタンのテキストを更新
+            if (revealIndex === ranksToReveal.length - 1) {
+                nextButton.textContent = '最終結果を見る';
+            } else {
+                 const nextRank = ranksToReveal[revealIndex + 1];
+                 if (nextRank === 1) {
+                     nextButton.textContent = 'いよいよ第1位の発表です！';
+                 } else {
+                     nextButton.textContent = `次は第${nextRank}位`;
+                 }
+            }
+        }
+        
+        function renderFinalResultScreen() {
+            stopConfettiStream(); 
+            sequentialView.classList.add('hidden');
+            resultContainer.classList.remove('hidden');
+            
+            const rankingList = document.getElementById('ranking-list');
+            rankingList.innerHTML = '';
+            const maxVotes = rankedResults.length > 0 ? rankedResults[0].votes : 0;
+            const medalColors = ['bg-yellow-400', 'bg-gray-400', 'bg-yellow-600'];
+
+            rankedResults.forEach((item, index) => {
+                const rank = item.rank;
+                const barWidth = maxVotes > 0 ? (item.votes / maxVotes) * 100 : 0;
+                
+                let rankIndicator;
+                if (rank <= 3) {
+                    const medalColorIndex = Math.min(rank - 1, 2);
+                    rankIndicator = `<div class="w-10 h-10 rounded-full ${medalColors[medalColorIndex]} flex items-center justify-center text-white font-bold text-lg shadow-md flex-shrink-0">${rank}</div>`;
+                } else {
+                    rankIndicator = `<div class="w-10 h-10 flex items-center justify-center text-gray-600 font-bold text-lg flex-shrink-0">${rank}</div>`;
+                }
+
+                const resultItem = `
+                    <div class="flex items-center space-x-4 p-2 fade-in-item" style="animation-delay: ${index * 150}ms;">
+                        ${rankIndicator}
+                        <img src="${item.imageUrl}" class="w-16 h-16 rounded-md object-cover shadow-sm" alt="${item.title}" onerror="this.onerror=null;this.src='https://placehold.co/600x400/E2E8F0/A0AEC0?text=No+Image';">
+                        <div class="flex-1 min-w-0">
+                            <a href="${item.url}" target="_blank" rel="noopener noreferrer" class="font-medium hover:underline truncate block" title="${item.title}">${item.title}</a>
+                            <div class="w-full bg-gray-200 rounded-full h-5 mt-1 overflow-hidden">
+                                <div class="bg-gradient-to-r from-cyan-400 to-blue-500 h-full rounded-full animate-grow" style="--bar-width: ${barWidth}%;"></div>
+                            </div>
+                        </div>
+                        <div class="text-xl font-bold text-gray-800 w-20 text-right">${item.votes} 票</div>
+                    </div>
+                `;
+                rankingList.insertAdjacentHTML('beforeend', resultItem);
+            });
+        }
+
+        function main() {
+            document.getElementById('app-title').textContent = EVENT_TITLE;
+            
+            startButton.addEventListener('click', () => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                
+                // 同率順位を計算
+                const sortedByVotes = [...RESULTS_DATA].sort((a, b) => b.votes - a.votes);
+                rankedResults = [];
+                let lastVotes = -1;
+                let lastRank = 0;
+                sortedByVotes.forEach((item, index) => {
+                    let currentRank;
+                    if (item.votes === lastVotes) {
+                        currentRank = lastRank;
+                    } else {
+                        currentRank = index + 1;
+                    }
+                    rankedResults.push({ ...item, rank: currentRank });
+                    lastVotes = item.votes;
+                    lastRank = currentRank;
+                });
+
+                // ★★★ 発表する順位（5位以内）を決定 ★★★
+                ranksToReveal = [...new Set(rankedResults.map(item => item.rank))] // ユニークな順位を取得
+                    .sort((a, b) => a - b) // 昇順にソート
+                    .filter(rank => rank <= 5) // 5位以内を抽出
+                    .reverse(); // 降順（発表順）に並び替え
+
+                revealIndex = 0;
+                
+                initialView.classList.add('hidden');
+                sequentialView.classList.remove('hidden');
+                displayCurrentRank();
+            });
+
+            nextButton.addEventListener('click', () => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                revealIndex++;
+                if (revealIndex < ranksToReveal.length) {
+                    displayCurrentRank();
+                } else {
+                    renderFinalResultScreen();
+                }
+            });
+
+            resetButton.addEventListener('click', () => {
+                window.location.reload();
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', main);
+    </script>
+</body>
+</html>
